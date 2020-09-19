@@ -1,0 +1,26 @@
+{
+  "name": "puppeteer-data-scraping",
+  "version": "1.0.0",
+  "description": "Scrapping data from a website using puppeteer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gamusta/puppeteer_data_scrapping.git"
+  },
+  "keywords": [
+    "scrap",
+    "website",
+    "data",
+    "puppteer",
+    "ecommerce"
+  ],
+  "author": "ustapha GANGA <gamusta@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/gamusta/puppeteer_data_scrapping/issues"
+  },
+  "homepage": "https://github.com/gamusta/puppeteer_data_scrapping#readme"
+}
