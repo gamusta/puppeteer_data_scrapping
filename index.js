@@ -1,9 +1,14 @@
-
 const puppeteer = require("puppeteer");
-const {URL} = require("url");
-const { v3 } = require ('uuid');
+const {
+    URL
+} = require("url");
+const {
+    v3
+} = require('uuid');
 const request = require("request");
 var fs = require('file-system');
+
+var models = require('./models');
 
 (async () => {
     const start = new Date().getTime();
@@ -11,51 +16,77 @@ var fs = require('file-system');
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     page.setViewport({
-      width: 1200,
-      height: 800,
+        width: 1200,
+        height: 800,
     });
 
-    await page.goto('https://iparts.ma/fr/recherche?controller=search&orderby=position&orderway=desc&search_category=all&s=afficheur&submit_search=');
-    
-    //await autoScroll(page);
+    let productCount = 0;
 
-    const productUrls = await page.$$eval('.laberProduct-image a.thumbnail', el => el.map(x => x.getAttribute("href")));
-    let cpt = 1;
-    for (let productUrl of productUrls) {
+    for (let i = 1; i <= 4; i++) {
 
-        const productHref = (new URL(productUrl, page.url())).href;
+        await page.goto(process.env.SCRAP_URL.replace('%page%',i));
 
-        console.log('processing ' + productHref);
-        
-        await page.goto(productHref);
+        await autoScroll(page);
 
-        const name = await page.$eval('.laberProduct [itemprop="name"]', elt => elt.textContent);    
-        console.log('*** name => ' + name);
+        const productUrls = await page.$$eval('.laberProductGrid .laberProduct-image a.thumbnail', el => el.map(x => x.getAttribute("href")));
+        let cpt = 1;
+        for (let productUrl of productUrls) {
 
-        const price = await page.$eval('.current-price [itemprop="price"]', elt => elt.textContent);
-        console.log('*** price => ' + price);
+            const productHref = (new URL(productUrl, page.url())).href;
 
-        const productImages = await page.$$eval('.product-cover > img', el => el.map(x => x.getAttribute("src")));
-        for (let img of productImages) {
-            const imgUrl = (new URL(img, page.url())).href
-            const imgName = v3(imgUrl, v3.URL)+"."+imgUrl.split('.').pop();
-            
-            request
-                .get(imgUrl)
-                .pipe(fs.createWriteStream('./images/'+imgName));
-        }
+            await page.goto(productHref);
 
-        cpt++;
-        if(cpt>2) {
-            break;
+            const brand = await page.$eval('.breadcrumb li:nth-child(3)', elt => elt.textContent);
+            const model = await page.$eval('.breadcrumb li:nth-child(5)', elt => elt.textContent);
+            const price = await page.$eval('.current-price [itemprop="price"]', elt => elt.textContent);
+            const availability = await page.$eval('#product-availability', elt => elt.textContent);
+            let soldCount = "0";
+            try {
+                soldCount = await page.$eval('span.prosold-nbr', elt => elt.textContent);
+            } catch(error) {
+
+            }
+            const category = await page.$eval('.breadcrumb li:nth-child(4)', elt => elt.textContent);
+            const name = await page.$eval('.laberProduct [itemprop="name"]', elt => elt.textContent);
+
+            const productImages = await page.$$eval('.product-cover > img', el => el.map(x => x.getAttribute("src")));
+            const re = new RegExp(String.fromCharCode(160), "g");
+
+            models.Product.create({
+                brand: brand.trim(),
+                model: model.trim(),
+                price: parseFloat(price.replace(re,'').replace(",", ".")),
+                availability: availability.trim().replace('', '').trim(),
+                soldCount: soldCount && parseInt(soldCount.replace(' ','').trim()),
+                category: category.trim(),
+                name: name.trim(),
+                description: ""
+            }).then(function (product) {
+                for (let img of productImages) {
+                    const imgUrl = (new URL(img, page.url())).href
+                    const imgName = v3(imgUrl, v3.URL) + "." + imgUrl.split('.').pop();
+
+                    request
+                        .get(imgUrl)
+                        .pipe(fs.createWriteStream('./images/' + imgName));
+                }
+            });
+
+            productCount++;
+
+            if(cpt > 2) break;
+
+            cpt++;
         }
     }
 
     const end = new Date().getTime();
-    console.log("Time in seconds : ", (end - start)/1000);
+
+    console.log("Products processed : " + productCount);
+    console.log("Time in seconds : ", (end - start) / 1000);
 })();
 
-async function autoScroll(page){
+async function autoScroll(page) {
     await page.evaluate(async () => {
         await new Promise((resolve, reject) => {
             var totalHeight = 0;
@@ -65,7 +96,7 @@ async function autoScroll(page){
                 window.scrollBy(0, distance);
                 totalHeight += distance;
 
-                if(totalHeight >= scrollHeight){
+                if (totalHeight >= scrollHeight) {
                     clearInterval(timer);
                     resolve();
                 }
